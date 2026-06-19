@@ -56,6 +56,16 @@ if __name__ == "__main__":
             time.sleep(2.0)
         
         eq = broker.equity()
+        
+        # --- NEW CODE: The Equity Fallback ---
+        # If IBKR Paper Trading fails to stream the equity, fallback to config
+        if eq <= 0:
+            # Safely grab the starting_capital from config, default to 1,000,000
+            fallback = getattr(cfg.risk, 'starting_capital', 1000000.0) if hasattr(cfg, 'risk') else 1000000.0
+            logging.warning(f"Broker returned $0.00 equity. Falling back to configured capital: ${fallback:,.2f}")
+            eq = fallback
+        # -------------------------------------
+        
         logging.info(f"Pre-flight successful. Starting Equity: ${eq:,.2f}")
         broker.disconnect()
         
