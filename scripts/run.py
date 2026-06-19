@@ -2,7 +2,6 @@
     python scripts/run.py config/config.yaml [--live]   (default = dry-run)"""
 import logging
 import sys
-import time
 from kestrel.config import load_config
 from kestrel.risk.manager import RiskManager
 from kestrel.live.runner import Runner
@@ -45,34 +44,32 @@ if __name__ == "__main__":
         
         # Give IBKR 2 seconds to stream the account data back over the socket
         logging.info("Waiting for IBKR account synchronization...")
-        
-        # Fix for $0.00 bug: time.sleep() blocks the network event loop.
-        # We must use the asyncio-aware sleep if using ib_insync.
         broker_name = cfg.broker.get("name", "").lower()
         if broker_name == "ibkr":
             import ib_insync
             ib_insync.util.sleep(2.0)
         else:
+            import time
             time.sleep(2.0)
         
         eq = broker.equity()
         
-        # --- NEW CODE: The Equity Fallback ---
-        # If IBKR Paper Trading fails to stream the equity, fallback to config
-        if eq <= 0:
-            # Safely grab the starting_capital from config, default to 1,000,000
-            fallback = getattr(cfg.risk, 'starting_capital', 1000000.0) if hasattr(cfg, 'risk') else 1000000.0
+        # --- THE EQUITY FALLBACK FIX ---
+        if eq <= 0.0:
+            # If IBKR fails to send the balance in time, fallback to your 1,006,483 config
+            # Ensure we safely grab the 'starting_capital' from the 'risk_management' block
+            fallback = cfg.risk.get("starting_capital", 1006483.0) if hasattr(cfg, 'risk') else 1006483.0
             logging.warning(f"Broker returned $0.00 equity. Falling back to configured capital: ${fallback:,.2f}")
             eq = fallback
-        # -------------------------------------
-        
-        logging.info(f"Pre-flight successful. Starting Equity: ${eq:,.2f}")
+        else:
+            logging.info(f"Pre-flight successful. Live Equity: ${eq:,.2f}")
+            
         broker.disconnect()
         
         # Launch the main event loop
         Runner(cfg, broker, RiskManager(cfg.risk, eq), dry_run=dry).start()
         
     except Exception as e:
-        # NOTE THE CHANGE HERE: We use logging.exception() to print the FULL traceback!
+        # We use logging.exception() to print the FULL traceback if anything crashes!
         logging.exception("Fatal error during startup:")
         sys.exit(1)
