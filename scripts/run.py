@@ -58,7 +58,7 @@ if __name__ == "__main__":
         if eq <= 0.0:
             # If IBKR fails to send the balance in time, fallback to your 1,006,483 config
             # Ensure we safely grab the 'starting_capital' from the 'risk_management' block
-            fallback = cfg.risk.get("starting_capital", 1006483.0) if hasattr(cfg, 'risk') else 1006483.0
+            fallback = getattr(cfg.risk, "starting_capital", 1006483.0) if hasattr(cfg, 'risk') else 1006483.0
             logging.warning(f"Broker returned $0.00 equity. Falling back to configured capital: ${fallback:,.2f}")
             eq = fallback
         else:
