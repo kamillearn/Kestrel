@@ -5,6 +5,8 @@ This script loads the configuration and initializes the broker/strategy.
 import logging
 import argparse
 import yaml
+import time
+from datetime import datetime
 from kestrel.execution.ibkr import IBKRBroker
 from kestrel.execution.oanda import OandaBroker
 
@@ -60,3 +62,40 @@ if __name__ == "__main__":
     
     logging.info(f"Pre-flight successful. Live Equity: ${eq:,.2f}")
     logging.info("Kestrel Engine is ready for execution.")
+    
+    # Extract instruments to watch from config
+    instruments_to_watch = cfg.get("instruments", [])
+    logging.info(f"Loaded Portfolio: {instruments_to_watch}")
+    
+    # 4. The Main Event Loop
+    logging.info("Entering continuous monitoring loop. Press Ctrl+C to stop.")
+    
+    loop_count = 0
+    try:
+        while True:
+            # ---------------------------------------------------------
+            # 🚀 CORE TRADING LOGIC GOES HERE
+            # 1. Check current time against Session Open
+            # 2. Wait for Opening Range to complete
+            # 3. Calculate OR High/Low
+            # 4. Place OCO Bracket Orders
+            # 5. Monitor and flatten at End of Day
+            # ---------------------------------------------------------
+            
+            # Print a heartbeat to the terminal every 60 seconds
+            if loop_count % 60 == 0:
+                now = datetime.now().strftime("%H:%M:%S")
+                logging.info(f"[{now}] Heartbeat: Engine is actively watching markets...")
+            
+            loop_count += 1
+            time.sleep(1) # Sleep 1 second to prevent pinning the CPU at 100%
+            
+    except KeyboardInterrupt:
+        print("\n")
+        logging.info("🛑 KeyboardInterrupt received (Ctrl+C). Initiating graceful shutdown...")
+    except Exception as e:
+        logging.error(f"❌ Fatal crash in event loop: {e}")
+    finally:
+        logging.info("Disconnecting from broker...")
+        broker.disconnect()
+        logging.info("Kestrel Engine shutdown complete. Goodbye!")
