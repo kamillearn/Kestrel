@@ -88,15 +88,7 @@ if __name__ == "__main__":
                 daily_state = {inst: {"status": "WAITING_FOR_OPEN", "oco_ids": []} for inst in instruments_to_watch}
                 logging.info(f"🌅 New Trading Session Started: {current_date}")
 
-            # 3. EMERGENCY KILLSWITCH CHECK
-            if read_killswitch():
-                if loop_count % 60 == 0:
-                    logging.warning("🛑 KILLSWITCH ACTIVE. Engine is halted and bypassing all logic.")
-                loop_count += 1
-                time.sleep(1)
-                continue
-
-            # 4. ITERATE THROUGH PORTFOLIO
+            # 3. ITERATE THROUGH PORTFOLIO
             for inst in instruments_to_watch:
                 state = daily_state[inst]
                 if state["status"] == "FLATTENED":
