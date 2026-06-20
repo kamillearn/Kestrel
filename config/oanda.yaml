@@ -1,0 +1,48 @@
+# =======================================================================
+# KESTREL ENGINE - OANDA LONDON CONFIGURATION
+# Strategy: 03:00 AM (ET) London Breakout on the Nasdaq & S&P 500
+# =======================================================================
+
+broker:
+  name: "oanda"
+  env: "practice"                             # Change to "live" when ready with real money
+  token: "db592c6dbf1c386c500ffb638586bcee-a03073aae9eb89c2e7db1c2166e407e9"    # Your OANDA API Token
+  account_id: "101-001-39385656-002"    # Your OANDA Account ID (e.g., 101-011-XXXXXXX-001)
+
+risk_management:
+  starting_capital: 100000.0    # Set to your 100,000 EUR practice account size
+  max_portfolio_risk_pct: 1.0   # 1% Max Risk per day
+  max_drawdown_killswitch: 20.0 # Shut down all trading if account drops 20%
+
+# We target the surviving indices for the London Open (mapped via NQ and ES blueprints)
+instruments: ["NQ", "ES"]
+
+strategy:
+  name: "OpeningRangeBreakout"
+  
+  assets:
+    # ---------------------------------------------------------
+    # LONDON BREAKOUT CHAMPION: The Nasdaq 100 (T-Stat: 3.31)
+    # ---------------------------------------------------------
+    - key: "NQ"
+      enabled: true
+      risk_pct: 0.70          # 0.7% Risk for the strongest edge
+      or_minutes: 30
+      custom_session:
+        timezone: "America/New_York"
+        open: "03:00"
+        close: "11:30"
+        flatten: "11:25"
+        
+    # ---------------------------------------------------------
+    # LONDON DIVERSIFIER: The S&P 500 (T-Stat: 1.82)
+    # ---------------------------------------------------------
+    - key: "ES"
+      enabled: true
+      risk_pct: 0.30          # 0.3% Risk for the secondary edge
+      or_minutes: 30
+      custom_session:
+        timezone: "America/New_York"
+        open: "03:00"
+        close: "11:30"
+        flatten: "11:25"

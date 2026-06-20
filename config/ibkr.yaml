@@ -1,0 +1,51 @@
+# =======================================================================
+# KESTREL ENGINE - LIVE PRODUCTION CONFIGURATION
+# Account Size: $10,000 
+# Total Daily Risk: 1.0% ($100 max exposure)
+# =======================================================================
+
+broker:
+  name: "ibkr"
+  host: "127.0.0.1"
+  port: 7497           # 7497 = TWS Paper Trading (IB Gateway)
+  client_id: 1         # Unique socket ID for the execution engine
+  account_id: ""       # Leave blank for auto-detect
+
+risk_management:
+  starting_capital: 1000000.0
+  max_portfolio_risk_pct: 1.0   # Hard cap: Bot will not exceed 1% total risk per day
+  max_drawdown_killswitch: 20.0 # Shut down all trading if account drops 20%
+
+# OVERRIDE THE DEFAULT REGISTRY - BANISH THE PHANTOM 'MYM' ASSET
+instruments: ["NQ", "DAX", "ES"]
+
+# =======================================================================
+# THE VALIDATED PORTFOLIO (INSTITUTIONAL SIZING)
+# =======================================================================
+strategy:
+  name: "OpeningRangeBreakout"
+  
+  assets:
+    # ---------------------------------------------------------
+    # TIER 1 CORE: The Full Nasdaq 100
+    # ---------------------------------------------------------
+    - key: "NQ"
+      enabled: true
+      risk_pct: 0.50          # 0.5% Risk (5,000 EUR)
+      or_minutes: 30          # Validated optimal timeframe
+      
+    # ---------------------------------------------------------
+    # TIER 1 DIVERSIFIER: The Full European DAX
+    # ---------------------------------------------------------
+    - key: "DAX"
+      enabled: true
+      risk_pct: 0.30          # 0.3% Risk (3,000 EUR)
+      or_minutes: 15          # Validated optimal timeframe
+      
+    # ---------------------------------------------------------
+    # TIER 2 BACKUP: The Full S&P 500
+    # ---------------------------------------------------------
+    - key: "ES"
+      enabled: true
+      risk_pct: 0.20          # 0.2% Risk (2,000 EUR)
+      or_minutes: 30          # Matches US Equity open

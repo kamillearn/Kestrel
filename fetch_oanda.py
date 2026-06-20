@@ -1,129 +1,188 @@
-#!/usr/bin/env python3
-"""
-fetch_oanda.py — pull 1-minute OANDA v20 candles for the index CFDs that map to
-Kestrel's validated edge, and write Kestrel/MT5-style CSVs you can run straight
-through scripts/validate.py.
+import csv
+import os
+import sys
+import time as _time
+from datetime import datetime, timezone, timedelta
+import requests
 
-Only fetches instruments worth testing (the index CFDs). FX / metals / crypto
-are deliberately omitted — they're already in the debunked pile.
+# ============== CONFIG — EDIT THESE ==============
+# Token falls back to environment variable so it never lives in the source:
+#   macOS/Linux:  export OANDA_API_TOKEN="your-practice-token"
+#   Windows CMD:  set OANDA_API_TOKEN=your-practice-token
+#   Windows PS:   $env:OANDA_API_TOKEN="your-practice-token"
+OANDA_API_TOKEN = os.environ.get("OANDA_API_TOKEN", "7af908ecb60c411d7ffe3ddea09daae0-8cca6595a2c0fc459697e523a5883ada")
+ENVIRONMENT = "practice"
+GRANULARITY = "M1"                # 1-minute candles for the Alpha Factory
+START       = "2022-01-01T00:00:00Z"
+END         = "2026-06-18T00:00:00Z"
+PRICE       = "BA"                # "BA" = bid & ask candles → allows spread calculation
 
-Auth (env vars):
-    OANDA_TOKEN   your v20 API token (practice or live)
-    OANDA_ENV     "practice" (default) or "live"
-    OANDA_ACCOUNT optional, only needed for --list-instruments
-
-Examples:
-    # discover the exact instrument codes your account exposes (DAX is DE30_EUR or DE40_EUR)
-    OANDA_TOKEN=... OANDA_ACCOUNT=... python fetch_oanda.py --list-instruments
-
-    # fetch the core set since 2021 into ./data/
-    OANDA_TOKEN=... python fetch_oanda.py --instruments NAS100_USD DE30_EUR SPX500_USD --from 2021-01-01
-
-Output: data/<INSTRUMENT>_M1.csv with columns  time,open,high,low,close,volume,spread
-        time is UTC "YYYY-MM-DD HH:MM:SS"; spread is ask-bid at the bar close, in
-        index points (the real OANDA cost — Kestrel uses it as the slippage proxy).
-"""
-import os, sys, time, csv, argparse, datetime as dt
-from urllib import request, parse, error
-import json
-
-# OANDA codes that proxy the validated edge. Comment = the futures instrument it maps to.
-DEFAULT_SET = [
-    "NAS100_USD",   # -> MNQ/NQ  (CORE Nasdaq edge — test this first)
-    "DE30_EUR",     # -> DAX     (the non-US winner; CFD lets you size small)
-    "SPX500_USD",   # -> SPY/ES  (solid)
-    "US2000_USD",   # -> RTY     (borderline; optional)
+# EXPANDED: A global sweep of Index CFDs for the Alpha Factory to test
+INSTRUMENTS = [
+    # US Markets
+    #("NAS100_USD", "data/NAS100_USD_M1.csv"),
+    #("SPX500_USD", "data/SPX500_USD_M1.csv"),
+    ("US2000_USD", "data/US2000_USD_M1.csv"),
+    ("US30_USD",   "data/US30_USD_M1.csv"),   # Dow Jones
+    
+    # European Markets
+    ("DE30_EUR",   "data/DE30_EUR_M1.csv"),   # DAX (Some OANDA accounts use DE40_EUR instead)
+    ("UK100_GBP",  "data/UK100_GBP_M1.csv"),  # FTSE 100
+    ("EU50_EUR",   "data/EU50_EUR_M1.csv"),   # Euro Stoxx 50
+    
+    # Asian/Pacific Markets
+    ("JP225_USD",  "data/JP225_USD_M1.csv"),  # Nikkei 225
+    ("HK33_HKD",   "data/HK33_HKD_M1.csv"),   # Hang Seng
+    ("AU200_AUD",  "data/AU200_AUD_M1.csv")   # ASX 200
 ]
-HOSTS = {"practice": "https://api-fxpractice.oanda.com",
-         "live":     "https://api-fxtrade.oanda.com"}
+# =================================================
+
+HOST = "https://api-fxpractice.oanda.com" if ENVIRONMENT == "practice" else "https://api-fxtrade.oanda.com"
+HEADERS = {"Authorization": f"Bearer {OANDA_API_TOKEN}"}
+MAX_COUNT = 5000
 
 
-def _host():
-    return HOSTS[os.environ.get("OANDA_ENV", "practice").lower()]
+def to_dt(s):
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
-def _get(path, params=None):
-    token = os.environ.get("OANDA_TOKEN")
-    if not token:
-        sys.exit("ERROR: set OANDA_TOKEN (your v20 API token).")
-    url = _host() + path + ("?" + parse.urlencode(params) if params else "")
-    req = request.Request(url, headers={"Authorization": f"Bearer {token}",
-                                        "Accept-Datetime-Format": "RFC3339"})
-    for attempt in range(6):
-        try:
-            with request.urlopen(req, timeout=30) as r:
-                return json.loads(r.read().decode())
-        except error.HTTPError as e:
-            if e.code in (429, 500, 502, 503, 504):
-                wait = 2 ** attempt
-                print(f"  {e.code}; backing off {wait}s", file=sys.stderr); time.sleep(wait); continue
-            sys.exit(f"HTTP {e.code} on {path}: {e.read().decode()[:300]}")
-        except error.URLError as e:
-            wait = 2 ** attempt
-            print(f"  network err ({e.reason}); retry in {wait}s", file=sys.stderr); time.sleep(wait)
-    sys.exit(f"giving up on {path} after retries")
+def granularity_to_minutes(gran: str) -> int:
+    if gran.startswith('M'):
+        return int(gran[1:])
+    elif gran.startswith('H'):
+        return int(gran[1:]) * 60
+    elif gran.startswith('D'):
+        return 1440
+    elif gran.startswith('W'):
+        return 10080
+    else:
+        return int(gran)
 
 
 def list_instruments():
-    acct = os.environ.get("OANDA_ACCOUNT")
-    if not acct:
-        sys.exit("ERROR: set OANDA_ACCOUNT to list instruments.")
-    data = _get(f"/v3/accounts/{acct}/instruments")
-    rows = sorted((i["name"], i["displayName"], i["type"]) for i in data["instruments"])
-    print(f"{'CODE':<16}{'NAME':<28}TYPE")
-    for name, disp, typ in rows:
-        flag = "  <-- index" if typ == "CFD" and any(k in name for k in
-               ("NAS", "SPX", "US2000", "US30", "DE", "UK", "JP", "EU")) else ""
-        print(f"{name:<16}{disp:<28}{typ}{flag}")
+    """Print the authoritative, account-specific tradeable-instrument list."""
+    acc = requests.get(f"{HOST}/v3/accounts", headers=HEADERS, timeout=30)
+    acc.raise_for_status()
+    account_id = acc.json()["accounts"][0]["id"]
+    r = requests.get(f"{HOST}/v3/accounts/{account_id}/instruments", headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    insts = sorted(r.json()["instruments"], key=lambda x: (x["type"], x["name"]))
+    print(f"Account {account_id} — {len(insts)} instruments\n")
+    print(f"{'name':16}{'type':12}displayName")
+    print("-" * 50)
+    for i in insts:
+        print(f"{i['name']:16}{i['type']:12}{i.get('displayName', '')}")
 
 
-def fetch(instrument, start, granularity="M1"):
-    out = f"data/{instrument}_M1.csv"
-    os.makedirs("data", exist_ok=True)
-    cursor = dt.datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=dt.timezone.utc)
-    now = dt.datetime.now(dt.timezone.utc)
-    n = 0
-    with open(out, "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["time", "open", "high", "low", "close", "volume", "spread"])
-        first = True
-        while cursor < now:
-            params = {"granularity": granularity, "price": "MBA", "count": 5000,
-                      "from": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                      "includeFirst": "true" if first else "false"}
-            data = _get(f"/v3/instruments/{instrument}/candles", params)
-            candles = [c for c in data.get("candles", []) if c.get("complete")]
-            if not candles:
+def fetch(instrument, output_file):
+    """Fetch candles for a single instrument and write to CSV."""
+    print(f"\n=== Fetching {instrument} -> {output_file} ===")
+    
+    # Ensure the target directory exists
+    os.makedirs(os.path.dirname(output_file) or ".", exist_ok=True)
+    
+    rows = []
+    cursor = to_dt(START)
+    end_dt = to_dt(END)
+    request_no = 0
+    step_minutes = granularity_to_minutes(GRANULARITY)
+    url = f"{HOST}/v3/instruments/{instrument}/candles"
+
+    while cursor < end_dt:
+        params = {
+            "granularity": GRANULARITY,
+            "price": PRICE,
+            "from": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "count": MAX_COUNT,
+        }
+        try:
+            r = requests.get(url, headers=HEADERS, params=params, timeout=30)
+        except Exception as e:
+            print(f"  Request error: {e}")
+            break
+
+        if r.status_code != 200:
+            print(f"  ERROR {r.status_code}: {r.text[:200]}")
+            break
+
+        candles = r.json().get("candles", [])
+        if not candles:
+            print("  No more candles returned by API.")
+            break
+
+        new_last = None
+        for c in candles:
+            t = to_dt(c["time"][:19] + "Z")
+            if t >= end_dt:
                 break
-            for c in candles:
-                t = c["time"][:19].replace("T", " ")          # UTC, second precision
-                m, b, a = c["mid"], c["bid"], c["ask"]
-                spread = round(float(a["c"]) - float(b["c"]), 5)
-                w.writerow([t, m["o"], m["h"], m["l"], m["c"], c["volume"], spread])
-            n += len(candles)
-            last = dt.datetime.strptime(candles[-1]["time"][:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=dt.timezone.utc)
-            cursor = last + dt.timedelta(seconds=1)
-            first = False
-            print(f"  {instrument}: {n:>8,} bars  (through {last:%Y-%m-%d %H:%M})", end="\r", file=sys.stderr)
-            time.sleep(0.12)                                   # gentle pacing
-    print(f"\n  -> wrote {out}  ({n:,} bars)", file=sys.stderr)
-    return out
+            if not c["complete"]:
+                continue
+
+            bid = c.get("bid")
+            ask = c.get("ask")
+            if not bid or not ask:
+                continue
+
+            # Midpoint OHLC
+            mid_open   = (float(bid["o"]) + float(ask["o"])) / 2.0
+            mid_high   = (float(bid["h"]) + float(ask["h"])) / 2.0
+            mid_low    = (float(bid["l"]) + float(ask["l"])) / 2.0
+            mid_close  = (float(bid["c"]) + float(ask["c"])) / 2.0
+            spread_points = float(ask["c"]) - float(bid["c"])
+
+            rows.append([
+                c["time"][:19].replace("T", " "),
+                round(mid_open, 5), round(mid_high, 5),
+                round(mid_low, 5), round(mid_close, 5),
+                int(c["volume"]),
+                round(spread_points, 5)
+            ])
+            new_last = t
+
+        request_no += 1
+        print(f"  request {request_no}: {len(candles)} candles processed, total kept {len(rows)}")
+
+        if new_last is None:
+            # Prevent infinite loop if API returns data but it doesn't advance past our cursor
+            break
+
+        # Advance cursor to the next expected candle slot after the last received block
+        cursor = new_last + timedelta(minutes=step_minutes)
+        _time.sleep(0.15)
+
+    # Write CSV after loop finishes execution to prevent performance overhead
+    if rows:
+        with open(output_file, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["time", "open", "high", "low", "close", "volume", "spread"])
+            w.writerows(rows)
+            print(f"  Wrote {len(rows)} candles to {output_file}")
+    else:
+        print(f"  No data fetched for {instrument}")
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Fetch OANDA M1 index-CFD candles for Kestrel.")
-    ap.add_argument("--instruments", nargs="+", default=DEFAULT_SET,
-                    help="OANDA instrument codes (default: the validated index set)")
-    ap.add_argument("--from", dest="start", default="2021-01-01", help="start date YYYY-MM-DD")
-    ap.add_argument("--granularity", default="M1", help="M1 (default), M5, etc.")
-    ap.add_argument("--list-instruments", action="store_true", help="list account instruments and exit")
-    args = ap.parse_args()
-    if args.list_instruments:
-        list_instruments(); return
-    print(f"OANDA {os.environ.get('OANDA_ENV','practice')} | {len(args.instruments)} instruments from {args.start}", file=sys.stderr)
-    for inst in args.instruments:
-        fetch(inst, args.start, args.granularity)
-    print("done. Next: PYTHONPATH=. python scripts/validate.py NAS100=data/NAS100_USD_M1.csv", file=sys.stderr)
+    if OANDA_API_TOKEN in [".....-.....", "PASTE_YOUR_NEW_TOKEN_HERE", ""]:
+        raise SystemExit("ERROR: Please set OANDA_API_TOKEN in your script config "
+                         "or export it as an environment variable first.")
+
+    # `python fetch_oanda.py --list` -> show what your account can actually pull
+    if "--list" in sys.argv:
+        list_instruments()
+        return
+
+    # Guard against two instruments writing to the same file (a silent overwrite)
+    outfiles = [o for _, o in INSTRUMENTS]
+    dupes = {o for o in outfiles if outfiles.count(o) > 1}
+    if dupes:
+        raise SystemExit(f"ERROR: duplicate output filenames {dupes} — "
+                         "each instrument needs its own CSV.")
+
+    print(f"Fetching {GRANULARITY} from {START} to {END} for {len(INSTRUMENTS)} instrument(s)...")
+    for instrument, outfile in INSTRUMENTS:
+        fetch(instrument, outfile)
+    
+    print("\nAll done.")
 
 
 if __name__ == "__main__":
