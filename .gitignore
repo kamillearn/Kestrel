@@ -2,9 +2,12 @@
 __pycache__/
 *.pyc
 .env
-config/config.yaml
+config/ibkr.yaml
+config/oanda.yaml
 state.json
 journal.csv
 backtest_out/
 KILL
 engine/
+data/
+.csv
