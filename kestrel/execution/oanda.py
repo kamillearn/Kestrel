@@ -7,13 +7,14 @@ import logging
 from kestrel.execution.broker import Broker, OcoBracket, Position
 
 class OandaBroker(Broker):
-    def __init__(self, token=None, account=None, env=None):
+    def __init__(self, token=None, account_id=None, env=None):
         self.token = token or os.getenv("OANDA_TOKEN")
-        self.account = account or os.getenv("OANDA_ACCOUNT")
+        # Ensure we check the passed account_id argument first
+        self.account = account_id or os.getenv("OANDA_ACCOUNT")
         self.env = (env or os.getenv("OANDA_ENV", "practice")).lower()
         
         if not self.account:
-            raise ValueError("OANDA_ACCOUNT is missing. Check your config/oanda.yaml.")
+            raise ValueError("OANDA_ACCOUNT is missing. Check your config/oanda.yaml or environment variables.")
 
         self.host = "https://api-fxpractice.oanda.com" if self.env == "practice" else "https://api-fxtrade.oanda.com"
         self.headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
@@ -52,8 +53,7 @@ class OandaBroker(Broker):
         return df.set_index("time")
 
     def place_oco(self, b: OcoBracket):
-        # Implementation logic remains similar but uses requests.post
-        # to the /v3/accounts/{self.account}/orders endpoint
+        # Implementation placeholder
         pass
 
     def open_orders(self, instrument):
