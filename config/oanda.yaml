@@ -5,9 +5,10 @@
 
 broker:
   name: "oanda"
-  env: "practice"                             # Change to "live" when ready with real money
-  token: "db592c6dbf1c386c500ffb638586bcee-a03073aae9eb89c2e7db1c2166e407e9"    # Your OANDA API Token
   account_id: "101-001-39385656-002"    # Your OANDA Account ID (e.g., 101-011-XXXXXXX-001)
+  token: "db592c6dbf1c386c500ffb638586bcee-a03073aae9eb89c2e7db1c2166e407e9"    # Your OANDA API Token
+  env: "practice"                             # Change to "live" when ready with real money
+
 
 risk_management:
   starting_capital: 100000.0    # Set to your 100,000 EUR practice account size

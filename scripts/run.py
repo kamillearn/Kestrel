@@ -21,7 +21,15 @@ def make_broker(cfg):
         
     elif broker_name == "oanda":
         from kestrel.execution.oanda import OandaBroker
-        return OandaBroker()
+        # Extract the values from the cfg dictionary
+        env = cfg.broker.get("env", "practice")
+        token = cfg.broker.get("token")
+        account_id = cfg.broker.get("account_id")
+        
+        logging.info(f"Connecting to OANDA ({env}) Account: {account_id}")
+        
+        # YOU MUST PASS THEM HERE:
+        return OandaBroker(env=env, account_id=account_id, token=token)
         
     else:
         raise ValueError(f"Unknown broker requested in config: '{broker_name}'")
