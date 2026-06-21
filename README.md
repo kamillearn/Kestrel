@@ -79,6 +79,8 @@ state:                    PRODUCTION_READY
 
 ### Expectancy (R) per Asset
 
+> **View:**&nbsp; **‹ EXPECTANCY ›** _(shown)_ &nbsp;·&nbsp; **WIN %** → expand the toggle below ▾
+
 ```text
  Expectancy (R) per Asset
  ────────────────────────────────────────────────────
@@ -93,6 +95,28 @@ state:                    PRODUCTION_READY
 | **MNQ** |    `+0.213 R` |  `49.5%` |
 | SPY     |    `+0.091 R` |  `43.4%` |
 | MYM     |    `+0.034 R` |  `46.0%` |
+
+<details>
+<summary>📊&nbsp; <b>Toggle → Win Rate (%) view</b> &nbsp;<i>(mirrors the dashboard's EXPECTANCY / WIN % switch)</i></summary>
+
+<br/>
+
+```text
+ Win Rate (%) per Asset                       scale: 0 ──▶ 100%
+ ────────────────────────────────────────────────────────────
+ MNQ   49.5%   █████████▉
+ MYM   46.0%   █████████▎
+ SPY   43.4%   ████████▋
+ ────────────────────────────────────────────────────────────
+```
+
+| Asset | Win Rate | Expectancy (R) |
+|:------|---------:|---------------:|
+| **MNQ** |  `49.5%` |    `+0.213 R` |
+| MYM     |  `46.0%` |    `+0.034 R` |
+| SPY     |  `43.4%` |    `+0.091 R` |
+
+</details>
 
 ---
 
