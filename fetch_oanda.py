@@ -24,8 +24,17 @@ INSTRUMENTS = [
     #("SPX500_USD", "data/SPX500_USD_M1.csv"),
     #("US2000_USD", "data/US2000_USD_M1.csv"),
     #("US30_USD",   "data/US30_USD_M1.csv"),   # Dow Jones
+
+    # European Markets
+    ("DE30_EUR", "data/DE40_EUR_M1.csv"),      # GER40 / DAX 40
+
+    # Cryptocurrencies
+    ("ETH_USD", "data/ETH_USD_M1.csv"),        # Ethereum
+
+    # Commodities (Energy)
+    ("WTICO_USD", "data/WTICO_USD_M1.csv"),    # West Texas Intermediate (WTI) Crude Oil
+    ("BCO_USD", "data/BCO_USD_M1.csv"),        # Brent Crude Oil
 ]
-# =================================================
 
 HOST = "https://api-fxpractice.oanda.com" if ENVIRONMENT == "practice" else "https://api-fxtrade.oanda.com"
 HEADERS = {"Authorization": f"Bearer {OANDA_API_TOKEN}"}
