@@ -20,20 +20,10 @@ PRICE       = "BA"                # "BA" = bid & ask candles → allows spread c
 # EXPANDED: A global sweep of Index CFDs for the Alpha Factory to test
 INSTRUMENTS = [
     # US Markets
-    #("NAS100_USD", "data_oanda/NAS100_USD_M1.csv"),
-    #("SPX500_USD", "data_oanda/SPX500_USD_M1.csv"),
-    #("US2000_USD", "data_oanda/US2000_USD_M1.csv"),
-    #("US30_USD",   "data_oanda/US30_USD_M1.csv"),   # Dow Jones
-    
-    # European Markets
-    #("DE30_EUR",   "data_oanda/DE30_EUR_M1.csv"),   # DAX (Some OANDA accounts use DE40_EUR instead)
-    #("UK100_GBP",  "data_oanda/UK100_GBP_M1.csv"),  # FTSE 100
-    #("EU50_EUR",   "data_oanda/EU50_EUR_M1.csv"),   # Euro Stoxx 50
-    
-    # Asian/Pacific Markets
-    #("JP225_USD",  "data_oanda/JP225_USD_M1.csv"),  # Nikkei 225
-    #("HK33_HKD",   "data_oanda/HK33_HKD_M1.csv"),   # Hang Seng
-    ("BTC_USD",  "data_oanda/BTC_USD_M5.csv")   # ASX 200
+    #("NAS100_USD", "data/NAS100_USD_M1.csv"),
+    #("SPX500_USD", "data/SPX500_USD_M1.csv"),
+    #("US2000_USD", "data/US2000_USD_M1.csv"),
+    #("US30_USD",   "data/US30_USD_M1.csv"),   # Dow Jones
 ]
 # =================================================
 

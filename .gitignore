@@ -9,6 +9,5 @@ backtest_out/
 KILL
 engine/
 data_ibkr/
-data_oanda/
 .csv
 config/
